@@ -5,10 +5,18 @@ import dotenv from "dotenv"
 
 dotenv.config({ path: ".env" })
 
-const pdfInput = await readFile(String.raw`C:\Users\17322\Desktop\Book Summary AI\The Like Switch.pdf`);
+//reads pdf into bytes form
+const pdfBytes = await readFile(String.raw`C:\Users\17322\Desktop\Book Summary AI\The Like Switch.pdf`);
 
+//convery pdf Bytes into actual document
 const { getDocument } = await getResolvedPDFJS() //use the full set of pdf.js tools
-const myPdf = await getDocument(new Uint8Array(pdfInput)).promise; //reach into the pdf promise, instead of just the pdf
+const myPdf = await getDocument(new Uint8Array(pdfBytes)).promise; //reach into the pdf promise, instead of just the pdf
+
+const meta = await myPdf.getMetadata();
+
+bookTitle = meta.info?.Title;
+bookAuthor = meta.info?.Author;
+
 
 console.log("Total pages:", myPdf.numPages);
 
@@ -39,29 +47,55 @@ for (let i = 0; i < chapters.length; i++) {
     chapterChunks.push({ title: chapters[i].title, wordCount: text.split(/\s+/).length, text });
 
 }
-
 //check the result
 //for (const ch of chapterChunks) {
 //const ch = chapterChunks[0]
 //    console.log(`${ch.title} - ${ch.wordCount} words: text is ${ch.text}`);
 //}
 
-//summarize ONE chapter
 const anthropic = new Anthropic(); //reads ANTHROPIC_API_KEY
 
-const chapter =  chapterChunks[1];
+const messages = [];
+const concatentedSummaries = [];
+//summarize each chapter one by one
+for (let j = 0; j < 2; j++) {
+    messages[j] = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 600,
+        messages: [
+            {
+                role: "user",
+                content: `Summarize this book chapter in 4-6 sentences. Capture the main theme, key concepts, and the main points of advice. Give bullet points when appropriate. Plain prose, no preamble. \n\n=== ${chapterChunks[j].title} ===\n${chapterChunks[j].text}`,
+            },
+        ],
+    });
+    console.log("CHAPTER:", chapterChunks[j].title);
+    console.log("\nSUMMARY:\n", messages[j].content[0].text);
+    //concatenates each chatper title and summary one by one
+    concatentedSummaries.push(`## ${chapterChunks[j].title}\n${messages[j].content[0].text}`)  
+}
 
-const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 600,
-    messages: [
-        {
-            role: "user",
-            content: `Summarize this book chapter in 4-6 sentences. Capture the main theme, key concepts, and the main points of advice. Give bullet points when appropriate. Plain prose, no preamble. \n\n=== ${chapter.title} ===\n${chapter.text}`,
-        },
-    ],
-});
+const chapterSummariesOneText = concatentedSummaries.join("\n\n")
+const finalSummary = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 600,
+        messages: [
+            {
+                role: "user",
+                content: `These are chapters of a book. 
+                Summarize all of them into one summary 4-6 sentences. 
+                Capture the main theme, key concepts, and the main points of advice. 
+                Give bullet points when appropriate. Cite the chapter(s) info/advice came from.
+                If there is a chapter that 
+                is not substantative like an Index, disregard it. 
+                Plain prose, no preamble. \n\n=== ${"The Like Switch"} ===\n${chapterSummariesOneText}`,
+            },
+        ],
+    });
+    
+    console.log(bookTitle);
+    console.log(bookAuthor);
 
-console.log("CHAPTER:, chapter.title");
-console.log("\nSUMMARY:\n", message.content[0].text);
+    console.log("\nSUMMARY:\n", finalSummary.content[0].text);
+
 

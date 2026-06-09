@@ -14,8 +14,8 @@ const myPdf = await getDocument(new Uint8Array(pdfBytes)).promise; //reach into 
 
 const meta = await myPdf.getMetadata();
 
-bookTitle = meta.info?.Title;
-bookAuthor = meta.info?.Author;
+const bookTitle = meta.info?.Title;
+const bookAuthor = meta.info?.Author;
 
 
 console.log("Total pages:", myPdf.numPages);
